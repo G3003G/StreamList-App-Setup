@@ -1,6 +1,22 @@
 import React, { useState } from 'react';
 import { NavLink, Route, Routes } from 'react-router-dom';
-import { Clapperboard, CircleHelp, Film, House, ListPlus, ShoppingCart, Sparkles } from 'lucide-react';
+import {
+  Check,
+  Circle,
+  CircleCheck,
+  Clapperboard,
+  CircleHelp,
+  Film,
+  House,
+  ListChecks,
+  ListPlus,
+  Pencil,
+  Save,
+  ShoppingCart,
+  Sparkles,
+  Trash2,
+  X,
+} from 'lucide-react';
 
 const navigation = [
   { label: 'StreamList', to: '/', icon: House, end: true },
@@ -33,6 +49,22 @@ function StreamListPage() {
   const [title, setTitle] = useState('');
   const [items, setItems] = useState([]);
   const [message, setMessage] = useState('');
+  const [filter, setFilter] = useState('all');
+  const [editingId, setEditingId] = useState(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [activity, setActivity] = useState([]);
+
+  const completedCount = items.filter((item) => item.completed).length;
+  const visibleItems = items.filter((item) => {
+    if (filter === 'active') return !item.completed;
+    if (filter === 'completed') return item.completed;
+    return true;
+  });
+
+  function recordActivity(text) {
+    const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    setActivity((current) => [{ id: crypto.randomUUID(), text, time }, ...current].slice(0, 5));
+  }
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -41,10 +73,61 @@ function StreamListPage() {
       setMessage('Type a movie or show title first.');
       return;
     }
+
+    const newItem = { id: crypto.randomUUID(), title: trimmedTitle, completed: false };
+    setItems((current) => [...current, newItem]);
     console.log('StreamList input:', trimmedTitle);
-    setItems((current) => [...current, { id: crypto.randomUUID(), title: trimmedTitle }]);
     setTitle('');
-    setMessage(`“${trimmedTitle}” was sent to the console and added to this preview.`);
+    setMessage(`Added “${trimmedTitle}” to your list.`);
+    recordActivity(`Added “${trimmedTitle}”`);
+  }
+
+  function toggleComplete(item) {
+    const completed = !item.completed;
+    setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, completed } : entry));
+    const action = completed ? 'Marked watched' : 'Moved back to To watch';
+    setMessage(`${action}: “${item.title}.”`);
+    recordActivity(`${action}: “${item.title}”`);
+  }
+
+  function startEditing(item) {
+    setEditingId(item.id);
+    setEditDraft(item.title);
+    setMessage(`Editing “${item.title}.”`);
+  }
+
+  function saveEdit(event, item) {
+    event.preventDefault();
+    const trimmedTitle = editDraft.trim();
+    if (!trimmedTitle) {
+      setMessage('A title cannot be blank. Enter a title or cancel the edit.');
+      return;
+    }
+    setItems((current) => current.map((entry) => entry.id === item.id ? { ...entry, title: trimmedTitle } : entry));
+    setEditingId(null);
+    setEditDraft('');
+    setMessage(`Updated title to “${trimmedTitle}.”`);
+    recordActivity(`Renamed “${item.title}” to “${trimmedTitle}”`);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft('');
+    setMessage('Edit canceled.');
+  }
+
+  function deleteItem(item) {
+    setItems((current) => current.filter((entry) => entry.id !== item.id));
+    if (editingId === item.id) cancelEdit();
+    setMessage(`Removed “${item.title}” from your list.`);
+    recordActivity(`Removed “${item.title}”`);
+  }
+
+  function clearCompleted() {
+    const removedCount = completedCount;
+    setItems((current) => current.filter((item) => !item.completed));
+    setMessage(`Cleared ${removedCount} watched ${removedCount === 1 ? 'title' : 'titles'}.`);
+    recordActivity(`Cleared ${removedCount} watched ${removedCount === 1 ? 'title' : 'titles'}`);
   }
 
   return (
@@ -67,25 +150,83 @@ function StreamListPage() {
       <section className="workspace">
         <div className="section-heading">
           <div><span className="section-kicker">YOUR PERSONAL WATCHLIST</span><h2>Start your StreamList</h2></div>
-          <span className="count-pill">{items.length} {items.length === 1 ? 'title' : 'titles'}</span>
+          <span className="count-pill">{items.length - completedCount} to watch · {completedCount} watched</span>
         </div>
+
         <form className="add-form" onSubmit={handleSubmit}>
           <label className="sr-only" htmlFor="watch-title">Movie or show title</label>
           <ListPlus className="input-icon" size={19} />
-          <input id="watch-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a movie or show you want to watch..." />
-          <button type="submit">Add to list <span aria-hidden="true">＋</span></button>
+          <input
+            id="watch-title"
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+            placeholder="Add a movie or show you want to watch..."
+            maxLength={80}
+          />
+          <button type="submit"><ListPlus size={16} /> Add to list</button>
         </form>
-        {message && <p className="status-message" role="status">{message}</p>}
+        {message && <p className="status-message" role="status" aria-live="polite">{message}</p>}
+
+        <div className="list-toolbar">
+          <div className="filter-tabs" role="group" aria-label="Filter watchlist">
+            {[['all', 'All'], ['active', 'To watch'], ['completed', 'Watched']].map(([key, label]) => (
+              <button key={key} type="button" className={`filter-tab${filter === key ? ' selected' : ''}`} onClick={() => setFilter(key)} aria-pressed={filter === key}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {completedCount > 0 && <button type="button" className="text-button" onClick={clearCompleted}>Clear watched</button>}
+        </div>
+
         {items.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon"><Clapperboard size={25} /></div>
             <h3>Your watchlist starts here</h3>
-            <p>Add your first title above. Your entry will also appear in the browser console.</p>
+            <p>Add your first title above. It will appear here so you can edit, remove, or mark it watched.</p>
           </div>
+        ) : visibleItems.length === 0 ? (
+          <div className="empty-filter-state"><ListChecks size={20} /><span>No {filter === 'active' ? 'unwatched' : 'watched'} titles in this view.</span></div>
         ) : (
           <ul className="watch-list" aria-label="Your watchlist">
-            {items.map((item, index) => <li key={item.id}><span className="item-number">{String(index + 1).padStart(2, '0')}</span><span className="item-title">{item.title}</span><span className="saved-label">SAVED</span></li>)}
+            {visibleItems.map((item) => {
+              const index = items.findIndex((entry) => entry.id === item.id);
+              const isEditing = editingId === item.id;
+              return (
+                <li className={`watch-item${item.completed ? ' is-complete' : ''}`} key={item.id}>
+                  <span className="item-number">{String(index + 1).padStart(2, '0')}</span>
+                  <button className="complete-button" type="button" onClick={() => toggleComplete(item)} aria-label={item.completed ? `Mark ${item.title} unwatched` : `Mark ${item.title} watched`} title={item.completed ? 'Mark as to watch' : 'Mark as watched'}>
+                    {item.completed ? <CircleCheck size={21} /> : <Circle size={21} />}
+                  </button>
+                  {isEditing ? (
+                    <form className="edit-form" onSubmit={(event) => saveEdit(event, item)}>
+                      <label className="sr-only" htmlFor={`edit-${item.id}`}>Edit title</label>
+                      <input id={`edit-${item.id}`} value={editDraft} onChange={(event) => setEditDraft(event.target.value)} autoFocus maxLength={80} />
+                      <button className="icon-button save-button" type="submit" aria-label="Save title" title="Save"><Save size={17} /></button>
+                      <button className="icon-button" type="button" onClick={cancelEdit} aria-label="Cancel edit" title="Cancel"><X size={17} /></button>
+                    </form>
+                  ) : (
+                    <>
+                      <span className="item-title">{item.title}</span>
+                      <span className="saved-label">{item.completed ? 'WATCHED' : 'TO WATCH'}</span>
+                      <div className="item-actions">
+                        <button className="icon-button" type="button" onClick={() => startEditing(item)} aria-label={`Edit ${item.title}`} title="Edit"><Pencil size={16} /></button>
+                        <button className="icon-button delete-button" type="button" onClick={() => deleteItem(item)} aria-label={`Delete ${item.title}`} title="Delete"><Trash2 size={16} /></button>
+                      </div>
+                    </>
+                  )}
+                </li>
+              );
+            })}
           </ul>
+        )}
+
+        {activity.length > 0 && (
+          <section className="activity-panel" aria-label="Recent StreamList activity">
+            <div className="activity-heading"><h3>Recent activity</h3><span>{activity.length} {activity.length === 1 ? 'event' : 'events'}</span></div>
+            <ul className="activity-list">
+              {activity.map((event) => <li key={event.id}><Check size={14} /><span>{event.text}</span><time>{event.time}</time></li>)}
+            </ul>
+          </section>
         )}
       </section>
       <footer className="page-footer"><span>EZTechMovie</span><span>Make room for what you want to watch.</span></footer>
@@ -102,7 +243,7 @@ function EmptyPage({ title, subtitle, icon: Icon }) {
         <h1>{title}</h1>
         <p>{subtitle}</p>
         <div className="placeholder-rule" />
-        <span className="placeholder-foot">This page is intentionally empty for Week 1.</span>
+        <span className="placeholder-foot">This page is intentionally empty for now.</span>
       </div>
     </main>
   );
@@ -114,9 +255,9 @@ export default function App() {
       <Header />
       <Routes>
         <Route path="/" element={<StreamListPage />} />
-        <Route path="/movies" element={<EmptyPage title="Movies" subtitle="Movie browsing will be added in Week 4." icon={Film} />} />
-        <Route path="/cart" element={<EmptyPage title="Cart" subtitle="Cart functionality will be added in Week 4." icon={ShoppingCart} />} />
-        <Route path="/about" element={<EmptyPage title="About StreamList" subtitle="The About page will be added in Week 5." icon={CircleHelp} />} />
+        <Route path="/movies" element={<EmptyPage title="Movies" subtitle="Movie browsing will be added in a future project week." icon={Film} />} />
+        <Route path="/cart" element={<EmptyPage title="Cart" subtitle="Cart functionality will be added in a future project week." icon={ShoppingCart} />} />
+        <Route path="/about" element={<EmptyPage title="About StreamList" subtitle="The About page will be added in a future project week." icon={CircleHelp} />} />
         <Route path="*" element={<EmptyPage title="Page not found" subtitle="Choose a page from the navigation above." icon={House} />} />
       </Routes>
     </div>
