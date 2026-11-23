@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavLink, Route, Routes } from 'react-router-dom';
 import {
+  CalendarDays,
   Check,
   Circle,
   CircleCheck,
@@ -10,10 +11,13 @@ import {
   House,
   ListChecks,
   ListPlus,
+  LoaderCircle,
   Pencil,
   Save,
+  Search,
   ShoppingCart,
   Sparkles,
+  Star,
   Trash2,
   X,
 } from 'lucide-react';
@@ -24,6 +28,15 @@ const navigation = [
   { label: 'Cart', to: '/cart', icon: ShoppingCart },
   { label: 'About', to: '/about', icon: CircleHelp },
 ];
+
+function readSavedValue(key, fallback) {
+  try {
+    const saved = window.localStorage.getItem(key);
+    return saved ? JSON.parse(saved) : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 function Header() {
   return (
@@ -45,14 +58,12 @@ function Header() {
   );
 }
 
-function StreamListPage() {
+function StreamListPage({ items, setItems, activity, recordActivity }) {
   const [title, setTitle] = useState('');
-  const [items, setItems] = useState([]);
   const [message, setMessage] = useState('');
   const [filter, setFilter] = useState('all');
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState('');
-  const [activity, setActivity] = useState([]);
 
   const completedCount = items.filter((item) => item.completed).length;
   const visibleItems = items.filter((item) => {
@@ -60,11 +71,6 @@ function StreamListPage() {
     if (filter === 'completed') return item.completed;
     return true;
   });
-
-  function recordActivity(text) {
-    const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-    setActivity((current) => [{ id: crypto.randomUUID(), text, time }, ...current].slice(0, 5));
-  }
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -137,7 +143,7 @@ function StreamListPage() {
           <div className="eyebrow"><Sparkles size={14} /> YOUR NEXT WATCH, ORGANIZED</div>
           <h1>Keep your next<br /><span>great watch</span> close.</h1>
           <p>Build a personal list of movies and shows you’re excited to stream. Add a title and keep your watch ideas in one place.</p>
-          <div className="hero-note"><span className="note-dot" /> A little list goes a long way.</div>
+          <div className="hero-note"><span className="note-dot" /> Your list stays here when you come back.</div>
         </div>
         <div className="hero-art" aria-hidden="true">
           <div className="orbit orbit-one" /><div className="orbit orbit-two" />
@@ -156,13 +162,7 @@ function StreamListPage() {
         <form className="add-form" onSubmit={handleSubmit}>
           <label className="sr-only" htmlFor="watch-title">Movie or show title</label>
           <ListPlus className="input-icon" size={19} />
-          <input
-            id="watch-title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            placeholder="Add a movie or show you want to watch..."
-            maxLength={80}
-          />
+          <input id="watch-title" value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Add a movie or show you want to watch..." maxLength={80} />
           <button type="submit"><ListPlus size={16} /> Add to list</button>
         </form>
         {message && <p className="status-message" role="status" aria-live="polite">{message}</p>}
@@ -170,9 +170,7 @@ function StreamListPage() {
         <div className="list-toolbar">
           <div className="filter-tabs" role="group" aria-label="Filter watchlist">
             {[['all', 'All'], ['active', 'To watch'], ['completed', 'Watched']].map(([key, label]) => (
-              <button key={key} type="button" className={`filter-tab${filter === key ? ' selected' : ''}`} onClick={() => setFilter(key)} aria-pressed={filter === key}>
-                {label}
-              </button>
+              <button key={key} type="button" className={`filter-tab${filter === key ? ' selected' : ''}`} onClick={() => setFilter(key)} aria-pressed={filter === key}>{label}</button>
             ))}
           </div>
           {completedCount > 0 && <button type="button" className="text-button" onClick={clearCompleted}>Clear watched</button>}
@@ -234,7 +232,106 @@ function StreamListPage() {
   );
 }
 
-function EmptyPage({ title, subtitle, icon: Icon }) {
+function MoviesPage({ onAddTitle }) {
+  const [query, setQuery] = useState('');
+  const [movies, setMovies] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [hasSearched, setHasSearched] = useState(false);
+  const accessToken = import.meta.env.VITE_TMDB_ACCESS_TOKEN;
+
+  async function searchMovies(event) {
+    event.preventDefault();
+    const searchTerm = query.trim();
+    if (!searchTerm) {
+      setError('Enter a movie title to search.');
+      setMovies([]);
+      setHasSearched(false);
+      return;
+    }
+    if (!accessToken) {
+      setError('TMDB is not configured yet. Add your API Read Access Token to a .env.local file, then restart the app.');
+      setMovies([]);
+      setHasSearched(false);
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setNotice('');
+    setHasSearched(true);
+    try {
+      const params = new URLSearchParams({ query: searchTerm, include_adult: 'false', language: 'en-US', page: '1' });
+      const response = await fetch(`https://api.themoviedb.org/3/search/movie?${params}`, {
+        headers: { Authorization: `Bearer ${accessToken}`, accept: 'application/json' },
+      });
+      if (!response.ok) {
+        throw new Error(response.status === 401 ? 'TMDB rejected the token. Check that you copied the API Read Access Token correctly.' : `TMDB search failed (${response.status}). Try again in a moment.`);
+      }
+      const data = await response.json();
+      setMovies(data.results ?? []);
+      if (!data.results?.length) setNotice(`No movies found for “${searchTerm}.”`);
+    } catch (searchError) {
+      setError(searchError.message || 'Could not reach TMDB. Check your connection and try again.');
+      setMovies([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function addMovie(movie) {
+    const added = onAddTitle(movie.title, movie.id);
+    setNotice(added ? `Added “${movie.title}” to your StreamList.` : `“${movie.title}” is already in your StreamList.`);
+  }
+
+  return (
+    <main className="movies-page">
+      <section className="movies-intro">
+        <span className="section-kicker">SEARCH THE MOVIE DATABASE</span>
+        <h1>Find your next watch.</h1>
+        <p>Search movie titles and add a result straight to your personal StreamList.</p>
+        <form className="movie-search-form" onSubmit={searchMovies}>
+          <label className="sr-only" htmlFor="movie-search">Search movies</label>
+          <Search size={19} aria-hidden="true" />
+          <input id="movie-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Try The Lion King..." maxLength={100} />
+          <button type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search movies'}</button>
+        </form>
+        {error && <p className="api-message api-error" role="alert">{error}</p>}
+        {!error && notice && <p className="api-message" role="status">{notice}</p>}
+      </section>
+
+      {loading && <div className="movie-loading"><LoaderCircle size={21} className="spinner" /><span>Searching TMDB…</span></div>}
+      {!loading && hasSearched && movies.length > 0 && (
+        <section className="movie-results" aria-label="Movie search results">
+          <div className="results-heading"><h2>Search results</h2><span>{movies.length} found</span></div>
+          <div className="movie-grid">
+            {movies.map((movie) => {
+              const year = movie.release_date?.slice(0, 4) || 'Year unavailable';
+              const poster = movie.poster_path ? `https://image.tmdb.org/t/p/w342${movie.poster_path}` : '';
+              return (
+                <article className="movie-card" key={movie.id}>
+                  {poster ? <img className="movie-poster" src={poster} alt={`Poster for ${movie.title}`} loading="lazy" /> : <div className="movie-poster poster-missing"><Film size={30} /><span>No poster</span></div>}
+                  <div className="movie-info">
+                    <h3>{movie.title}</h3>
+                    <div className="movie-meta"><span><CalendarDays size={13} /> {year}</span><span><Star size={13} /> {Number(movie.vote_average || 0).toFixed(1)}</span></div>
+                    <p>{movie.overview || 'No overview is available for this title.'}</p>
+                    <button type="button" className="movie-add-button" onClick={() => addMovie(movie)}><ListPlus size={15} /> Add to StreamList</button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+      {!loading && hasSearched && movies.length === 0 && !error && notice && <div className="empty-state movie-empty"><Film size={25} /><p>{notice}</p></div>}
+      {!hasSearched && !error && <div className="movie-prompt"><Clapperboard size={24} /><p>Search above to see movie information from TMDB.</p></div>}
+      <footer className="page-footer"><span>EZTechMovie</span><span>Movie information provided by TMDB.</span></footer>
+    </main>
+  );
+}
+
+function EmptyPage({ title, subtitle, icon: Icon, attribution = false }) {
   return (
     <main className="placeholder-page">
       <div className="placeholder-card">
@@ -242,6 +339,7 @@ function EmptyPage({ title, subtitle, icon: Icon }) {
         <span className="section-kicker">COMING IN A FUTURE PROJECT WEEK</span>
         <h1>{title}</h1>
         <p>{subtitle}</p>
+        {attribution && <p className="tmdb-credit">This product uses the TMDB API but is not endorsed or certified by TMDB. <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer">Visit TMDB</a>.</p>}
         <div className="placeholder-rule" />
         <span className="placeholder-foot">This page is intentionally empty for now.</span>
       </div>
@@ -250,14 +348,47 @@ function EmptyPage({ title, subtitle, icon: Icon }) {
 }
 
 export default function App() {
+  const [items, setItems] = useState(() => readSavedValue('streamlist-items', []));
+  const [activity, setActivity] = useState(() => readSavedValue('streamlist-activity', []));
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('streamlist-items', JSON.stringify(items));
+    } catch (error) {
+      console.error('Could not save StreamList items:', error);
+    }
+  }, [items]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('streamlist-activity', JSON.stringify(activity));
+    } catch (error) {
+      console.error('Could not save StreamList activity:', error);
+    }
+  }, [activity]);
+
+  function recordActivity(text) {
+    const time = new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    setActivity((current) => [{ id: crypto.randomUUID(), text, time }, ...current].slice(0, 5));
+  }
+
+  function addTitle(rawTitle, tmdbId = null) {
+    const trimmedTitle = rawTitle.trim();
+    if (tmdbId && items.some((item) => item.tmdbId === tmdbId)) return false;
+    setItems((current) => [...current, { id: crypto.randomUUID(), title: trimmedTitle, completed: false, ...(tmdbId ? { tmdbId } : {}) }]);
+    console.log('StreamList input:', trimmedTitle);
+    recordActivity(`Added “${trimmedTitle}”`);
+    return true;
+  }
+
   return (
     <div className="app-shell">
       <Header />
       <Routes>
-        <Route path="/" element={<StreamListPage />} />
-        <Route path="/movies" element={<EmptyPage title="Movies" subtitle="Movie browsing will be added in a future project week." icon={Film} />} />
+        <Route path="/" element={<StreamListPage items={items} setItems={setItems} activity={activity} recordActivity={recordActivity} />} />
+        <Route path="/movies" element={<MoviesPage onAddTitle={addTitle} />} />
         <Route path="/cart" element={<EmptyPage title="Cart" subtitle="Cart functionality will be added in a future project week." icon={ShoppingCart} />} />
-        <Route path="/about" element={<EmptyPage title="About StreamList" subtitle="The About page will be added in a future project week." icon={CircleHelp} />} />
+        <Route path="/about" element={<EmptyPage title="About StreamList" subtitle="StreamList helps keep your movies and shows organized." icon={CircleHelp} attribution />} />
         <Route path="*" element={<EmptyPage title="Page not found" subtitle="Choose a page from the navigation above." icon={House} />} />
       </Routes>
     </div>

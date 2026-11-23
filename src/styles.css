@@ -44,3 +44,46 @@
 .activity-list li span{flex:1;overflow-wrap:anywhere}
 .activity-list time{font-size:9px;color:#788493;white-space:nowrap}
 @media(max-width:520px){.watch-item{gap:8px;padding:9px}.saved-label{display:none}.filter-tab{padding:7px 9px}.activity-panel{padding:11px}.activity-list li{font-size:9px}}
+
+/* TMDB movie search */
+.movies-page{min-height:calc(100vh - 83px);padding-top:62px}
+.movies-intro{max-width:760px;margin:0 auto 38px;text-align:center}
+.movies-intro .section-kicker{justify-content:center}
+.movies-intro h1{font-family:Manrope,sans-serif;font-size:clamp(36px,5vw,52px);letter-spacing:-2px;margin:12px 0}
+.movies-intro>p{color:#aab2bc;font-size:14px;line-height:1.7;margin:0 auto 24px}
+.movie-search-form{height:58px;display:flex;align-items:center;gap:12px;padding:6px 7px 6px 16px;background:#1b222e;border:1px solid rgba(255,255,255,.1);border-radius:11px;text-align:left}
+.movie-search-form>svg{color:#8793a2;flex:none}
+.movie-search-form input{min-width:0;flex:1;border:0;outline:0;background:transparent;color:#f4f2ed;font-size:13px}
+.movie-search-form input::placeholder{color:#727d8b}
+.movie-search-form:focus-within{border-color:#ff875986;box-shadow:0 0 0 3px #ff875914}
+.movie-search-form button,.movie-add-button{display:flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:8px;background:var(--orange);color:#191a1e;font-weight:700;cursor:pointer}
+.movie-search-form button{height:42px;padding:0 17px;font-size:11px;white-space:nowrap}
+.movie-search-form button:disabled{opacity:.6;cursor:wait}
+.api-message{margin:12px 0 0;color:#9fd7b2;font-size:12px}
+.api-error{color:#ffad99}
+.movie-loading,.movie-prompt{display:flex;justify-content:center;align-items:center;gap:10px;min-height:170px;color:#a2acb8;font-size:13px}
+.movie-prompt{flex-direction:column;border:1px dashed #ffffff18;border-radius:12px}
+.movie-prompt svg{color:var(--orange)}
+.movie-prompt p{margin:0}
+.spinner{animation:spin 1s linear infinite;color:var(--orange)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.results-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.results-heading h2{margin:0;font-family:Manrope,sans-serif;font-size:20px}
+.results-heading span{font-size:11px;color:#9da6b2}
+.movie-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.movie-card{display:grid;grid-template-columns:112px minmax(0,1fr);min-height:190px;overflow:hidden;border:1px solid var(--line);border-radius:11px;background:#181e29}
+.movie-poster{width:112px;height:100%;min-height:190px;object-fit:cover;background:#202733}
+.poster-missing{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#85909f;font-size:10px}
+.movie-info{min-width:0;display:flex;flex-direction:column;align-items:flex-start;padding:13px}
+.movie-info h3{margin:0 0 7px;color:#f4f2ed;font-family:Manrope,sans-serif;font-size:15px;line-height:1.25}
+.movie-meta{display:flex;gap:13px;color:#a2acb8;font-size:10px}
+.movie-meta span{display:flex;align-items:center;gap:4px}
+.movie-meta svg{color:#ffbb76}
+.movie-info>p{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin:9px 0 12px;color:#aab2bc;font-size:10px;line-height:1.55}
+.movie-add-button{margin-top:auto;min-height:32px;padding:0 10px;font-size:10px}
+.movie-add-button:hover,.movie-search-form button:hover{background:#ffa07a}
+.movie-empty{margin-top:12px;min-height:125px}
+.tmdb-credit{margin-top:20px!important;padding-top:18px;border-top:1px solid var(--line);font-size:11px!important;line-height:1.6}
+.tmdb-credit a{color:#ff9c79}
+@media(max-width:760px){.movies-page{padding-top:42px}.movie-grid{grid-template-columns:1fr}}
+@media(max-width:480px){.movie-card{grid-template-columns:88px minmax(0,1fr)}.movie-poster{width:88px;min-height:170px}.movie-info{padding:11px}.movie-search-form{gap:8px;padding-left:11px}.movie-search-form input{font-size:11px}.movie-search-form button{padding:0 10px;font-size:10px}}
